@@ -27,7 +27,7 @@ deployed in the ice sheet, the Radio Neutrino Observatory (RNO-G) and the Radar 
 site is still accessible though the upper casing has degraded such that access to equipment and large cameras is no longer
 possible beyond about 60 feet down due to casing deformation. The state of the casing beyond this and the lower borehole
 section is largely unknown.
-
+<br>
 The GISP-Cam system is being developed to investigate the state of the borehole casing above and below the 60 foot 
 deformation.
 
