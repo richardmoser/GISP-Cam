@@ -1,7 +1,7 @@
 # GISP-Cam
-A simple, low cost camera system for deep borehole inspections.
+A simple, low-cost camera system for deep borehole inspections.
 - [ ] todo: finish README.md
-- [ ] todo: add images from PVC test
+- [ ] todo: add images from tests
 ___
 ## Table of Contents
 - [Introduction](#introduction)
