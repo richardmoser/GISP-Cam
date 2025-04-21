@@ -39,7 +39,8 @@ deformation.
 ## Hardware
 
 ### GISP-Cam
-- [ ] todo: add image of presentation slide with diagram
+
+![GISP-Cam](images/Maxi_Cam_Diagram.jpg)
 
 - 1x Raspberry Pi 5
 - 4x Foxeer Nano Toothless 2 FPV Cameras
@@ -51,14 +52,45 @@ deformation.
 - 1x Momentary switch
 - various wiring and connectors
 
+![Camera Body](images/maxi_body.JPEG)
+![Nose cone](images/maxi_nosecone.JPEG)
+![Nose cone](images/nose1.png)
+![Nose cone](images/nose2.png)
+![Nose cone](images/nose3.png)
+![Nose cone](images/nose4.png)
+
+Solarized dark             |  Solarized Ocean
+:-------------------------:|:-------------------------:
+![Nose cone](images/nose1.png) |  ![Nose cone](images/nose2.png)
+[//]: # (![Nose cone]&#40;images/nose3.png&#41; |  ![Nose cone]&#40;images/nose4.png&#41;)
+
+[//]: # (<p float="left">)
+
+[//]: # (  <img src="images/nose1.png" width="200" />)
+
+[//]: # (  <img src="images/nose2.png" width="200" />)
+
+[//]: # (  <img src="images/nose3.png" width="200" />)
+
+[//]: # (  <img src="images/nose4.png" width="200" />)
+
+[//]: # (</p>)
+
 ### GISP-Cam Mini
-- [ ] todo: add image of presentation slide with diagram
+
+![GISP-Cam Mini](images/Mini_Cam_Diagram.jpg)
 - 1x Foxeer Nano Toothless 2 FPV Camera
 - 1x CVBS to USB Video Capture Card
 - 1x Single Channel Power Over Coax Transceiver
 - 3x LEDs
 - various wiring and connectors
 
+![Camera Body](images/mini_body.JPEG)
+
 ## Software
+
+
+## Testing
+
 
 
