@@ -18,7 +18,9 @@ ___
   - [Testing the GISP-Cam](#testing-the-gisp-cam)
   - [Testing the GISP-Cam Mini](#testing-the-gisp-cam-mini)
 - [Future Work](#future-work)
+
 <br>
+
 ___
 
 ## Introduction
