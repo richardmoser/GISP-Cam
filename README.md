@@ -44,7 +44,6 @@ deformation.
 - Low cost
 - Easy to build, maintain, and operate
 - wide field of view
-<br><br>
 ___
 ## Hardware
 
@@ -76,7 +75,6 @@ The above image shows the electronics laid out prior to assembly in the final en
 :-------------------------:|:-------------------------:
 ![Nose cone](images/nose3.png) Radial LEDs (shrouded) |  ![Nose cone](images/nose4.png) Radial camera frame and angled LEDs
 
-<br>
 
 ___
 
@@ -96,7 +94,6 @@ ___
 #### Camera Enclosure
 ![Camera Body](images/mini_cam_electronics.JPEG)
 
-<br><br>
 ___
 
 ## Software
