@@ -13,10 +13,15 @@ ___
 - [Software](#software)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Testing](#testing)
+  - [Testing the GISP-Cam](#testing-the-gisp-cam)
+  - [Testing the GISP-Cam Mini](#testing-the-gisp-cam-mini)
+- [Future Work](#future-work)
 
 ## Introduction
 The GISP-Cam system is built with commercially available electronic components, avoiding proprietary software and hardware
 requirements. 
+This project has been made possible by the University of Kansas' Department of Physics and Astronomy Machine Shop. Thanks to Mark Stockham and Scott Voigt for all their suggestions, patience, and time designing and machining the enclosures to fit the cameras and electronics as well as with testing.
 
 ### Motivation
 The Greenland Ice Sheet Project 2 (GISP2) was a multinational ice core drilling project in Greenland located at the summit
@@ -38,7 +43,7 @@ deformation.
 
 ## Hardware
 
-### GISP-Cam
+### GISP-Cam Large
 
 ![GISP-Cam](images/Maxi_Cam_Diagram.jpg)
 
@@ -51,30 +56,22 @@ deformation.
 - 3x LEDs
 - 1x Momentary switch
 - various wiring and connectors
+#### Electronics
+![prototype electronics](images/maxi_cam_electronics.JPEG)
+The above image shows the electronics laid out prior to assembly in the final enclosure. The pictured wiring and camera/LED frame were used for testing and are not representative of the final product.
 
+#### Camera Enclosure
 ![Camera Body](images/maxi_body.JPEG)
+
+#### Nose Cone
 ![Nose cone](images/maxi_nosecone.JPEG)
-![Nose cone](images/nose1.png)
-![Nose cone](images/nose2.png)
-![Nose cone](images/nose3.png)
-![Nose cone](images/nose4.png)
 
-Solarized dark             |  Solarized Ocean
+#### Nose Cone Internal Component View 
+![Nose cone](images/nose1.png) Exterior |  ![Nose cone](images/nose2.png) Forward camera and LEDs
 :-------------------------:|:-------------------------:
-![Nose cone](images/nose1.png) |  ![Nose cone](images/nose2.png)
-[//]: # (![Nose cone]&#40;images/nose3.png&#41; |  ![Nose cone]&#40;images/nose4.png&#41;)
+![Nose cone](images/nose3.png) Radial LEDs (shrouded) |  ![Nose cone](images/nose4.png) Radial camera frame and angled LEDs
 
-[//]: # (<p float="left">)
 
-[//]: # (  <img src="images/nose1.png" width="200" />)
-
-[//]: # (  <img src="images/nose2.png" width="200" />)
-
-[//]: # (  <img src="images/nose3.png" width="200" />)
-
-[//]: # (  <img src="images/nose4.png" width="200" />)
-
-[//]: # (</p>)
 
 ### GISP-Cam Mini
 
@@ -82,10 +79,13 @@ Solarized dark             |  Solarized Ocean
 - 1x Foxeer Nano Toothless 2 FPV Camera
 - 1x CVBS to USB Video Capture Card
 - 1x Single Channel Power Over Coax Transceiver
-- 3x LEDs
+- 2x LEDs
 - various wiring and connectors
+#### Camera Enclosure
+![Camera Body](images/mini_cam_electronics.JPEG)
 
-![Camera Body](images/mini_body.JPEG)
+#### 
+![electronics](images/)
 
 ## Software
 
