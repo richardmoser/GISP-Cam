@@ -2,6 +2,7 @@
 A simple, low-cost camera system for deep borehole inspections.
 - [ ] todo: finish README.md
 - [ ] todo: add images from tests
+<br><br>
 ___
 ## Table of Contents
 - [Introduction](#introduction)
@@ -17,6 +18,8 @@ ___
   - [Testing the GISP-Cam](#testing-the-gisp-cam)
   - [Testing the GISP-Cam Mini](#testing-the-gisp-cam-mini)
 - [Future Work](#future-work)
+<br><br>
+___
 
 ## Introduction
 The GISP-Cam system is built with commercially available electronic components, avoiding proprietary software and hardware
@@ -40,7 +43,8 @@ deformation.
 - Low cost
 - Easy to build, maintain, and operate
 - wide field of view
-
+<br><br>
+___
 ## Hardware
 
 ### GISP-Cam Large
@@ -71,7 +75,9 @@ The above image shows the electronics laid out prior to assembly in the final en
 :-------------------------:|:-------------------------:
 ![Nose cone](images/nose3.png) Radial LEDs (shrouded) |  ![Nose cone](images/nose4.png) Radial camera frame and angled LEDs
 
+<br>
 
+___
 
 ### GISP-Cam Mini
 
@@ -81,11 +87,16 @@ The above image shows the electronics laid out prior to assembly in the final en
 - 1x Single Channel Power Over Coax Transceiver
 - 2x LEDs
 - various wiring and connectors
+
+#### Camera Enclosure
+![Camera Body](images/mini_tube.png)
+![electronics](images/mini_no_tube.png)
+
 #### Camera Enclosure
 ![Camera Body](images/mini_cam_electronics.JPEG)
 
-#### 
-![electronics](images/)
+<br><br>
+___
 
 ## Software
 
