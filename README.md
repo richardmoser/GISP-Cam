@@ -19,8 +19,11 @@ ___
   - [Testing the GISP-Cam Mini](#testing-the-gisp-cam-mini)
 - [Future Work](#future-work)
 
-<br><br>
+<br>
+
 ___
+<br>
+
 
 ## Introduction
 The GISP-Cam system is built with commercially available electronic components, avoiding proprietary software and hardware
