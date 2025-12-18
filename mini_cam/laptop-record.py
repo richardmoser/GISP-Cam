@@ -8,7 +8,7 @@ import cv2  # OpenCV
 import time  # Time
 import sys
 import os  # OS
-import tkinter as tk
+# import tkinter as tk
 
 from cv2.videoio_registry import getBackendName
 from cv2_enumerate_cameras import supported_backends
@@ -177,11 +177,10 @@ def record_video(cam_index):
         ret, frame = cap.read()
         if ret:
             font = cv2.FONT_HERSHEY_SIMPLEX
-            time_string = time.strftime("%H:%M:%S", time.localtime(time.time()))
-            cv2.putText(frame, time_string, (10, 470), font, 0.75, (255, 255, 255), 2, cv2.LINE_AA)
+            time_string = time.strftime("%H:%M:%S", time.localtime(time.time()))  # 24 hour time
+            cv2.putText(frame, time_string, (10, 470), font, 0.75, (255, 255, 255), 2, cv2.LINE_AA)  # write the timestamp
 
-            out.write(frame)
-            cv2.putText(frame, 'Press q to quit', (10, 30), font, 1, (255, 255, 255), 2, cv2.LINE_AA)
+            out.write(frame)  # Save the frame to output file
 
             cv2.imshow('frame', frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
