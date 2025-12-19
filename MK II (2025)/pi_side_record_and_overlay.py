@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 """
 Author: Richard Moser
 Date: 15Dec25
@@ -18,6 +20,101 @@ os.environ["XDG_SESSION_TYPE"] = "xcb"  # may need to comment this out on certai
 
 for backend in supported_backends:
     print(getBackendName(backend))
+
+""" ToF sensor setup """
+import sys, time
+import I2C_VL6180X_Functions
+from ST_VL6180X import VL6180X
+# import tkinter as tk
+
+# sensor power pin setup
+import RPi.GPIO as GPIO
+GPIO.setmode(GPIO.BCM)
+sensor0_power_pin = 17
+sensor1_power_pin = 27
+sensor2_power_pin = 22
+sensor3_power_pin = 23
+
+# Set all sensor power pins as outputs
+GPIO.setup(sensor0_power_pin, GPIO.OUT)
+GPIO.setup(sensor1_power_pin, GPIO.OUT)
+GPIO.setup(sensor2_power_pin, GPIO.OUT)
+GPIO.setup(sensor3_power_pin, GPIO.OUT)
+# Turn off all sensors initially
+GPIO.output(sensor0_power_pin, GPIO.LOW)
+GPIO.output(sensor1_power_pin, GPIO.LOW)
+GPIO.output(sensor2_power_pin, GPIO.LOW)
+GPIO.output(sensor3_power_pin, GPIO.LOW)
+time.sleep(0.1)  # Wait for sensors to power down
+
+
+# get active I2C bus
+i2c_bus = I2C_VL6180X_Functions.get_i2c_bus()
+print(f"I2C bus: {i2c_bus}")
+
+# Power on each sensor one at a time and set their I2C addresses
+# Sensor 0
+GPIO.output(sensor0_power_pin, GPIO.HIGH)
+time.sleep(0.1)  # Wait for sensor to power up
+
+# #Initialize and report Sensor 0
+# sensor0_i2cid = 0x10
+# sensor0 = VL6180X(sensor0_i2cid)
+# sensor0.get_identification()
+# if sensor0.idModel != 0xB4:
+#     print("Not Valid Sensor, Id reported as ",hex(sensor0.idModel))
+# else:
+#     print("Valid Sensor, ID reported as ",hex(sensor0.idModel))
+# sensor0.default_settings()
+# # Finish Initialize Sensor 0
+# # ---------------------------------
+# #Initialize and report Sensor 1
+# sensor1_i2cid = 0x11
+# sensor1 = VL6180X(sensor1_i2cid)
+# sensor1.get_identification()
+# if sensor1.idModel != 0xB4:
+#     print("Not Valid Sensor, Id reported as ",hex(sensor1.idModel))
+# else:
+#     print("Valid Sensor, ID reported as ",hex(sensor1.idModel))
+# sensor1.default_settings()
+# #Finish Initialize Sensor 1
+# #---------------------------------
+# #Initialize and report Sensor 2
+# sensor2_i2cid = 0x12
+# sensor2 = VL6180X(sensor2_i2cid)
+# sensor2.get_identification()
+# if sensor2.idModel != 0xB4:
+#     print("Not Valid Sensor, Id reported as ",hex(sensor2.idModel))
+# else:
+#     print("Valid Sensor, ID reported as ",hex(sensor2.idModel))
+# sensor2.default_settings()
+# #Finish Initialize Sensor 2
+# #---------------------------------
+# #Initialize and report Sensor 3
+# sensor3_i2cid = 0x13
+# sensor3 = VL6180X(sensor3_i2cid)
+# sensor3.get_identification()
+# if sensor3.idModel != 0xB4:
+#     print("Not Valid Sensor, Id reported as ",hex(sensor3.idModel))
+# else:
+#     print("Valid Sensor, ID reported as ",hex(sensor3.idModel))
+# sensor3.default_settings()
+# #Finish Initialize Sensor 3
+# #---------------------------------
+
+#Time allotted to each sensor to make a reading in sec
+Range_Convergtime = 0.02
+
+
+results = 0
+L0 = "0"
+L1 = "0"
+L2 = "0"
+L3 = "0"
+
+""" functions and main program """
+
+
 
 # set colors
 BLACK = '\033[30m'
@@ -45,6 +142,28 @@ CLEAR = '\033[2J\033[H'  # clear screen
 # set the directory to {the date}_Captures
 dir = time.strftime("/%Y%m%d", time.localtime()) + "_Captures/"
 
+def update_sensor_address(current_address, new_address):
+    sensor = VL6180X(current_address)
+    sensor.get_identification()
+    if sensor.idModel != 0xB4:
+        print(f"Not Valid Sensor at address {hex(current_address)}, Id reported as {hex(sensor.idModel)}")
+        return False
+    else:
+        print(f"Valid Sensor at address {hex(current_address)}, ID reported as {hex(sensor.idModel)}")
+
+    # Change the I2C address
+    sensor.change_address(current_address, new_address)
+    time.sleep(0.1)  # Wait for the change to take effect
+
+    # Verify the address change
+    sensor_new = VL6180X(new_address)
+    sensor_new.get_identification()
+    if sensor_new.idModel == 0xB4:
+        print(f"Successfully changed address to {hex(new_address)}")
+        return True
+    else:
+        print(f"Failed to change address to {hex(new_address)}")
+        return False
 
 def print_cams():  # Print available cameras
     num_cams = 10  # Number of cameras to check
@@ -132,8 +251,21 @@ def record_video(cam_index=0):
         # cv2.putText(bordered_frame, f"{timestamp} | {resolution}", (10, frame.shape[0] + 25),
         #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
 
-        test_text = "Test Video Capture, sensor input goes here"
-        cv2.putText(bordered_frame, test_text, (60, frame.shape[0] + 25),
+        # test_text = "Test Video Capture, sensor input goes here"
+        # cv2.putText(bordered_frame, test_text, (60, frame.shape[0] + 25),
+                    # cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+
+        L0 = str(sensor0.get_distance())
+        # time.sleep(Range_Convergtime)
+        L1 = str(sensor1.get_distance())
+        # time.sleep(Range_Convergtime)
+        L2 = str(sensor2.get_distance())
+        # time.sleep(Range_Convergtime)
+        L3 = str(sensor3.get_distance())
+        # time.sleep(Range_Convergtime)
+
+        # print the distances on the frame
+        cv2.putText(bordered_frame, f"S0: {L0}mm S1: {L1}mm S2: {L2}mm S3: {L3}mm", (10, frame.shape[0] + 50),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
 
         cv2.imshow('Video Feed', bordered_frame)  # Display the frame with border in the window

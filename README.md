@@ -1,6 +1,8 @@
 # GISP-Cam
 A simple, low-cost camera system for deep borehole inspections.
-- [ ] todo: finish README.md
+- [ ] todo: Update readme for 2025 changes
+  - add command to create executable 
+    - `pyinstaller --onefile --paths "/home/rj/PycharmProjects/GISP-Cam/.venv/lib/python3.13/site-packages/" composite_in_read.py` 
 - [ ] todo: add images from tests
 <br><br>
 ___

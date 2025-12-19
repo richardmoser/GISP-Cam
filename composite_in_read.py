@@ -94,7 +94,7 @@ def reconnect_camera():
     print(f"{RED}No camera found. Retrying in 1 second...{RESET}")
     return None, None
 
-# define a function to display the video feed from the camera in a window
+#display the video feed from the camera in a window
 def record_video(cam_index=0):
     # the window should be resizable and the video feed should adjust to the window size
     cap = cv2.VideoCapture(cam_index)  # Capture video from camera
