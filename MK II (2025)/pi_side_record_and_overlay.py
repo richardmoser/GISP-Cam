@@ -22,10 +22,12 @@ for backend in supported_backends:
     print(getBackendName(backend))
 
 """ ToF sensor setup """
+
+""" ToF sensor setup """
 import sys, time
-import I2C_VL6180X_Functions
 from ST_VL6180X import VL6180X
-# import tkinter as tk
+import subprocess
+
 
 # sensor power pin setup
 import RPi.GPIO as GPIO
@@ -33,74 +35,156 @@ GPIO.setmode(GPIO.BCM)
 sensor0_power_pin = 17
 sensor1_power_pin = 27
 sensor2_power_pin = 22
-sensor3_power_pin = 23
+sensor3_power_pin = 10
+sensor_pins = [sensor0_power_pin, sensor1_power_pin, sensor2_power_pin, sensor3_power_pin]
 
-# Set all sensor power pins as outputs
-GPIO.setup(sensor0_power_pin, GPIO.OUT)
-GPIO.setup(sensor1_power_pin, GPIO.OUT)
-GPIO.setup(sensor2_power_pin, GPIO.OUT)
-GPIO.setup(sensor3_power_pin, GPIO.OUT)
-# Turn off all sensors initially
-GPIO.output(sensor0_power_pin, GPIO.LOW)
-GPIO.output(sensor1_power_pin, GPIO.LOW)
-GPIO.output(sensor2_power_pin, GPIO.LOW)
-GPIO.output(sensor3_power_pin, GPIO.LOW)
+for pin in sensor_pins:
+    GPIO.setup(pin, GPIO.OUT)
+    GPIO.output(pin, GPIO.LOW)  # Turn off all sensors initially
 time.sleep(0.1)  # Wait for sensors to power down
 
 
-# get active I2C bus
-i2c_bus = I2C_VL6180X_Functions.get_i2c_bus()
-print(f"I2C bus: {i2c_bus}")
+ignored_addresses = []  # Add any addresses to ignore here
 
-# Power on each sensor one at a time and set their I2C addresses
-# Sensor 0
-GPIO.output(sensor0_power_pin, GPIO.HIGH)
-time.sleep(0.1)  # Wait for sensor to power up
+# Sensor configuration
+sensor_pins = [sensor0_power_pin, sensor1_power_pin, sensor2_power_pin, sensor3_power_pin]
+sensor_addresses = [0x10, 0x11, 0x12, 0x13]  # New I2C addresses for sensors
 
-# #Initialize and report Sensor 0
-# sensor0_i2cid = 0x10
-# sensor0 = VL6180X(sensor0_i2cid)
-# sensor0.get_identification()
-# if sensor0.idModel != 0xB4:
-#     print("Not Valid Sensor, Id reported as ",hex(sensor0.idModel))
-# else:
-#     print("Valid Sensor, ID reported as ",hex(sensor0.idModel))
-# sensor0.default_settings()
-# # Finish Initialize Sensor 0
-# # ---------------------------------
-# #Initialize and report Sensor 1
-# sensor1_i2cid = 0x11
-# sensor1 = VL6180X(sensor1_i2cid)
-# sensor1.get_identification()
-# if sensor1.idModel != 0xB4:
-#     print("Not Valid Sensor, Id reported as ",hex(sensor1.idModel))
-# else:
-#     print("Valid Sensor, ID reported as ",hex(sensor1.idModel))
-# sensor1.default_settings()
-# #Finish Initialize Sensor 1
-# #---------------------------------
-# #Initialize and report Sensor 2
-# sensor2_i2cid = 0x12
-# sensor2 = VL6180X(sensor2_i2cid)
-# sensor2.get_identification()
-# if sensor2.idModel != 0xB4:
-#     print("Not Valid Sensor, Id reported as ",hex(sensor2.idModel))
-# else:
-#     print("Valid Sensor, ID reported as ",hex(sensor2.idModel))
-# sensor2.default_settings()
-# #Finish Initialize Sensor 2
-# #---------------------------------
-# #Initialize and report Sensor 3
-# sensor3_i2cid = 0x13
-# sensor3 = VL6180X(sensor3_i2cid)
-# sensor3.get_identification()
-# if sensor3.idModel != 0xB4:
-#     print("Not Valid Sensor, Id reported as ",hex(sensor3.idModel))
-# else:
-#     print("Valid Sensor, ID reported as ",hex(sensor3.idModel))
-# sensor3.default_settings()
-# #Finish Initialize Sensor 3
-# #---------------------------------
+# Each sensor slot will be a dict with keys:
+#   index, power_pin, address, sensor, available, last_value_mm
+sensors = []
+
+
+class SensorUnavailableError(Exception):
+    """Custom exception to signal an unavailable sensor."""
+    pass
+
+
+def update_sensor_address(current_address, new_address):
+    """Attempt to update a VL6180X sensor I2C address, returning True on success.
+
+    Any exceptions are caught and logged, and False is returned to allow
+    graceful degradation when sensors misbehave.
+    """
+    try:
+        sensor = VL6180X(current_address)
+        sensor.get_identification()
+        if sensor.idModel != 0xB4:
+            print(f"Not Valid Sensor at address {hex(current_address)}, Id reported as {hex(sensor.idModel)}")
+            return False
+        else:
+            print(f"Valid Sensor at address {hex(current_address)}, ID reported as {hex(sensor.idModel)}")
+
+        # Change the I2C address
+        sensor.change_address(current_address, new_address)
+        time.sleep(0.1)  # Wait for the change to take effect
+
+        # Verify the address change
+        sensor_new = VL6180X(new_address)
+        sensor_new.get_identification()
+        if sensor_new.idModel == 0xB4:
+            print(f"Successfully changed address to {hex(new_address)}")
+            return True
+        else:
+            print(f"Failed to change address to {hex(new_address)}")
+            return False
+    except Exception as e:
+        print(f"{RED}Exception while updating sensor address from {hex(current_address)} to {hex(new_address)}: {e}{RESET}")
+        return False
+
+
+def init_single_sensor(index, power_pin, target_address):
+    """Initialize a single sensor slot.
+
+    Returns a dict describing the sensor slot; failures are logged and
+    represented as unavailable sensors so that video can still run.
+    """
+    slot = {
+        "index": index,
+        "power_pin": power_pin,
+        "address": target_address,
+        "sensor": None,
+        "available": False,
+        "last_value_mm": None,
+    }
+
+    print("==============================")
+    print(f"Powering on sensor {index}...")
+    try:
+        GPIO.output(power_pin, GPIO.HIGH)
+    except Exception as e:
+        print(f"{RED}Failed to power on sensor {index} (pin {power_pin}): {e}{RESET}")
+        return slot
+
+    time.sleep(0.1)  # Wait for sensor to power up
+
+    # Scan for new devices
+    try:
+        p = subprocess.Popen(['i2cdetect', '-y', '1'], stdout=subprocess.PIPE)
+        current_addresses = []
+        for line in p.stdout:
+            line_str = line.decode('utf-8').strip()
+            if len(line_str) > 2 and line_str[0:2].isdigit() and line_str[2] == ':':
+                parts = line_str.split()
+                for part in parts[1:]:
+                    if part != '--':
+                        current_addresses.append(int(part, 16))
+    except Exception as e:
+        print(f"{RED}Failed to run i2cdetect for sensor {index}: {e}{RESET}")
+        try:
+            GPIO.output(power_pin, GPIO.LOW)
+        except Exception:
+            pass
+        return slot
+
+    new_addresses = [addr for addr in current_addresses if addr not in ignored_addresses]
+    if len(new_addresses) == 0:
+        print(f"No new I2C device found for sensor {index}")
+        try:
+            GPIO.output(power_pin, GPIO.LOW)  # Power off the sensor
+        except Exception:
+            pass
+        return slot
+
+    current_address = new_addresses[0]
+    print(f"Found new I2C device at address {hex(current_address)} for sensor {index}")
+    success = update_sensor_address(current_address, target_address)
+    if not success:
+        try:
+            GPIO.output(power_pin, GPIO.LOW)  # Power off the sensor
+        except Exception:
+            pass
+        return slot
+
+    ignored_addresses.append(target_address)
+
+    # Create the sensor object and apply default settings
+    try:
+        sensor = VL6180X(target_address)
+        sensor.default_settings()
+        slot["sensor"] = sensor
+        slot["available"] = True
+        print(f"sensor {index}: initialized at address {hex(target_address)}")
+    except Exception as e:
+        print(f"{RED}Failed to initialize sensor {index} at address {hex(target_address)}: {e}{RESET}")
+        try:
+            GPIO.output(power_pin, GPIO.LOW)
+        except Exception:
+            pass
+
+    return slot
+
+
+# Initialize sensors one by one using fault-tolerant initialization
+sensors = [
+    init_single_sensor(i, sensor_pins[i], sensor_addresses[i])
+    for i in range(len(sensor_pins))
+]
+
+print("==============================")
+for slot in sensors:
+    status = "available" if slot["available"] else "unavailable"
+    print(f"sensor {slot['index']}: {status} at address {hex(slot['address'])}")
 
 #Time allotted to each sensor to make a reading in sec
 Range_Convergtime = 0.02
@@ -142,28 +226,7 @@ CLEAR = '\033[2J\033[H'  # clear screen
 # set the directory to {the date}_Captures
 dir = time.strftime("/%Y%m%d", time.localtime()) + "_Captures/"
 
-def update_sensor_address(current_address, new_address):
-    sensor = VL6180X(current_address)
-    sensor.get_identification()
-    if sensor.idModel != 0xB4:
-        print(f"Not Valid Sensor at address {hex(current_address)}, Id reported as {hex(sensor.idModel)}")
-        return False
-    else:
-        print(f"Valid Sensor at address {hex(current_address)}, ID reported as {hex(sensor.idModel)}")
 
-    # Change the I2C address
-    sensor.change_address(current_address, new_address)
-    time.sleep(0.1)  # Wait for the change to take effect
-
-    # Verify the address change
-    sensor_new = VL6180X(new_address)
-    sensor_new.get_identification()
-    if sensor_new.idModel == 0xB4:
-        print(f"Successfully changed address to {hex(new_address)}")
-        return True
-    else:
-        print(f"Failed to change address to {hex(new_address)}")
-        return False
 
 def print_cams():  # Print available cameras
     num_cams = 10  # Number of cameras to check
@@ -228,51 +291,142 @@ def record_video(cam_index=0):
     # Create a fullscreen window
     cv2.namedWindow('Video Feed', cv2.WINDOW_NORMAL)  # Create resizable window
     cv2.setWindowProperty('Video Feed', cv2.WND_PROP_FULLSCREEN, cv2.WINDOW_FULLSCREEN)  # Set to fullscreen
-    while True:  # Loop until 'q' is pressed
-        ret, frame = cap.read()  # Read frame from camera
-        if not ret:  # If frame is not read correctly
-            print(f"{RED}Warning: Frame not read correctly. Attempting to reconnect...{RESET}")
-            cap.release()  # Release the camera
-            cv2.destroyAllWindows()  # Close all windows
-            time.sleep(1)  # Wait before reconnecting
-            cap, cam_index = reconnect_camera()  # Try to reconnect
-            if cap is None:  # If reconnection failed
-                continue  # Retry
-            continue  # Continue to next iteration after reconnection
-        # cv2.imshow('Video Feed', frame)  # Display the frame in the window
-        # add a 5px black border around the frame
 
-        out.write(frame)  # write the frame to the output file
-        """ Nothing after this point gets saved to the local video file """
-        bordered_frame = cv2.copyMakeBorder(frame, 5, 30, 50, 50, cv2.BORDER_CONSTANT, value=[0, 0, 0])
-        # in the bottom border, add the current date and time in white text and the screen resolution
-        # timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
-        # resolution = f"{frame.shape[1]}x{frame.shape[0]}"
-        # cv2.putText(bordered_frame, f"{timestamp} | {resolution}", (10, frame.shape[0] + 25),
-        #             cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+    # Create ToF log file alongside the video file
+    tof_log_filename = f"{dir}ToF_{date_string}_{time_string}.log"
+    # Ensure directory exists
+    os.makedirs(os.path.dirname(tof_log_filename), exist_ok=True)
+    try:
+        tof_log = open(tof_log_filename, "a", buffering=1)
+        tof_log.write("# timestamp,S1_mm,S2_mm,S3_mm,S4_mm\n")
+    except Exception as e:
+        print(f"{RED}Failed to open ToF log file {tof_log_filename}: {e}{RESET}")
+        tof_log = None
 
-        # test_text = "Test Video Capture, sensor input goes here"
-        # cv2.putText(bordered_frame, test_text, (60, frame.shape[0] + 25),
-                    # cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+    # History of last 5 readings (current + 4 previous) for 4 sensors; values are ints or None
+    history = [[None, None, None, None] for _ in range(5)]
 
-        L0 = str(sensor0.get_distance())
-        # time.sleep(Range_Convergtime)
-        L1 = str(sensor1.get_distance())
-        # time.sleep(Range_Convergtime)
-        L2 = str(sensor2.get_distance())
-        # time.sleep(Range_Convergtime)
-        L3 = str(sensor3.get_distance())
-        # time.sleep(Range_Convergtime)
+    def read_sensor(slot):
+        """Safely read a single sensor.
 
-        # print the distances on the frame
-        cv2.putText(bordered_frame, f"S0: {L0}mm S1: {L1}mm S2: {L2}mm S3: {L3}mm", (10, frame.shape[0] + 50),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+        Returns (value_int_or_None, updated_slot). If a sensor fails mid-run,
+        it is marked unavailable and will return None from then on.
+        """
+        if not slot["available"] or slot["sensor"] is None:
+            return None, slot
+        try:
+            value = slot["sensor"].get_distance()
+            try:
+                value_int = int(value)
+            except (TypeError, ValueError):
+                value_int = None
+            if value_int is not None and value_int < 0:
+                value_int = 0
+            slot["last_value_mm"] = value_int
+            return value_int, slot
+        except Exception as e:
+            print(f"{RED}Sensor {slot['index']} read failed, marking as unavailable: {e}{RESET}")
+            slot["available"] = False
+            slot["sensor"] = None
+            slot["last_value_mm"] = None
+            try:
+                GPIO.output(slot["power_pin"], GPIO.LOW)
+            except Exception:
+                pass
+            return None, slot
 
-        cv2.imshow('Video Feed', bordered_frame)  # Display the frame with border in the window
+    try:
+        while True:  # Loop until 'q' is pressed
+            ret, frame = cap.read()  # Read frame from camera
+            if not ret:  # If frame is not read correctly
+                print(f"{RED}Error: Could not read frame from camera.{RESET}")
+                disconnect = True
+                while disconnect:
+                    print(f"{RED}Warning: Frame not read correctly. Attempting to reconnect...{RESET}")
+                    # cap.release()  # Release the camera
+                    # cv2.destroyAllWindows()  # Close all windows
+                    time.sleep(1)  # Wait before reconnecting
+                    cap, cam_index = reconnect_camera()  # Try to reconnect
+                    if cap is None:  # If reconnection failed
+                        continue  # Retry
+                    else:
+                        disconnect = False  # Reconnection successful
+                        print(f"{GREEN}Reconnected to camera index {cam_index}{RESET}")
+                        ret, frame = cap.read()  # Read frame from camera
+                        break  # Exit the reconnect loop
+                # continue
+            # cv2.imshow('Video Feed', frame)  # Display the frame in the window
+            # add a 5px black border around the frame
 
-        if cv2.waitKey(1) & 0xFF == ord('q'):  # Exit on 'q' key press
-            break
-    cap.release()  # Release the camera
+            out.write(frame)  # write the frame to the output file
+
+            """ Nothing after this point gets saved to the local video file """
+
+            bordered_frame = cv2.copyMakeBorder(frame, 1, 32, 30, 30, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+
+            # get the distance from each sensor (ints or None)
+            current_values = [None, None, None, None]
+            for i in range(4):
+                if i < len(sensors):
+                    value, sensors[i] = read_sensor(sensors[i])
+                    current_values[i] = value
+                else:
+                    current_values[i] = None
+
+            # update history: shift older readings and insert current at front
+            history[4] = history[3]
+            history[3] = history[2]
+            history[2] = history[1]
+            history[1] = history[0]
+            history[0] = current_values
+
+            # average the current reading with the previous readings to smooth out the data
+            smoothed_values = []
+            for sensor_idx in range(4):
+                samples = [h[sensor_idx] for h in history if h[sensor_idx] is not None]
+                if len(samples) == 0:
+                    smoothed_values.append(None)
+                else:
+                    smoothed_values.append(sum(samples) // len(samples))
+
+            # Convert smoothed values to display strings, using '---' for unavailable sensors
+            display_values = []
+            for val in smoothed_values:
+                if val is None:
+                    display_values.append("---")
+                else:
+                    display_values.append(str(val))
+
+            L0, L1, L2, L3 = display_values
+
+            timestamp = time.strftime("%Y.%m.%d %H:%M:%S", time.localtime())
+
+            # Log ToF readings if log file is available
+            if tof_log is not None:
+                try:
+                    tof_log.write(f"{timestamp},{L0},{L1},{L2},{L3}\n")
+                except Exception as e:
+                    print(f"{RED}Failed to write ToF log entry: {e}{RESET}")
+                    tof_log = None
+
+            # print the distances at the bottom of the video feed
+            cv2.putText(bordered_frame, f"S1: {L0}mm S2: {L1}mm S3: {L2}mm S4: {L3}mm", (10, frame.shape[0] + 15),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+            # print the timestamp at the top left of the video feed
+            cv2.putText(bordered_frame, f"{timestamp}", (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+
+            cv2.imshow('Video Feed', bordered_frame)  # Display the frame with border in the window
+
+            if cv2.waitKey(1) & 0xFF == ord('q'):  # Exit on 'q' key press
+                break
+    finally:
+        cap.release()  # Release the camera
+        if tof_log is not None:
+            try:
+                tof_log.close()
+            except Exception:
+                pass
 
 
 
@@ -291,4 +445,10 @@ if __name__ == '__main__':  # Run the
                 cam_index = camera_info.index
                 print(f"{GREEN}Using camera index {cam_index}{RESET}")
 
-        record_video(cam_index=cam_index)  # Record video from a usb camera
+        try:
+            record_video(cam_index=cam_index)  # Record video from a usb camera
+        except Exception as e:
+            if f"name 'cam_index' is not defined" in str(e):
+                print(f"{RED}Error: No suitable camera found. Exiting program.{RESET}")
+            else:
+                print(f"{RED}An error occurred: {e}{RESET}")

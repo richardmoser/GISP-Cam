@@ -23,9 +23,9 @@ import numpy as np
 
 """ ToF sensor setup """
 import sys, time
-# import I2C_VL6180X_Functions
 from ST_VL6180X import VL6180X
-# import tkinter as tk
+import subprocess
+
 
 # sensor power pin setup
 import RPi.GPIO as GPIO
@@ -41,31 +41,14 @@ for pin in sensor_pins:
     GPIO.output(pin, GPIO.LOW)  # Turn off all sensors initially
 time.sleep(0.1)  # Wait for sensors to power down
 
-print("I2C device scan:")
-# run i2cdetect -y 1
-import subprocess
-# p = subprocess.Popen(['i2cdetect', '-y', '1'], stdout=subprocess.PIPE)
 
-# print the output line by line
-# for line in p.stdout:
-#     print(line.decode('utf-8').strip())
-
-# make a list of detected addresses to ignore when powering on sensors
-detected_addresses = []
-# p = subprocess.Popen(['i2cdetect', '-y', '1'], stdout=subprocess.PIPE)
-# for line in p.stdout:
-#     line_str = line.decode('utf-8').strip()
-#     if len(line_str) > 2 and line_str[0:2].isdigit() and line_str[2] == ':':
-#         parts = line_str.split()
-#         for part in parts[1:]:
-#             if part != '--':
-#                 detected_addresses.append(int(part, 16))
-# print("Detected I2C addresses before powering on sensors:", [hex(addr) for addr in detected_addresses])
+ignored_addresses = []  # Add any addresses to ignore here
 
 # Initialize sensors one by one
 sensors = []
 sensor_pins = [sensor0_power_pin, sensor1_power_pin, sensor2_power_pin, sensor3_power_pin]
 sensor_addresses = [0x10, 0x11, 0x12, 0x13]  # New I2C addresses for sensors
+
 
 
 def update_sensor_address(current_address, new_address):
@@ -108,7 +91,7 @@ for i, pin in enumerate(sensor_pins):
             for part in parts[1:]:
                 if part != '--':
                     current_addresses.append(int(part, 16))
-    new_addresses = [addr for addr in current_addresses if addr not in detected_addresses]
+    new_addresses = [addr for addr in current_addresses if addr not in ignored_addresses]
     if len(new_addresses) == 0:
         print(f"No new I2C device found for sensor {i}")
         GPIO.output(pin, GPIO.LOW)  # Power off the sensor
@@ -117,7 +100,7 @@ for i, pin in enumerate(sensor_pins):
     print(f"Found new I2C device at address {hex(current_address)} for sensor {i}")
     success = update_sensor_address(current_address, sensor_addresses[i])
     if success:
-        detected_addresses.append(sensor_addresses[i])
+        ignored_addresses.append(sensor_addresses[i])
         sensor = VL6180X(sensor_addresses[i])
         sensor.default_settings()
         sensors.append(sensor)

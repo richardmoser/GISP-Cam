@@ -1,4 +1,4 @@
-"""
+"""q
 Author: Richard Moser
 Date: 15Apr25
 Purpose: Record video from a usb camera
@@ -177,8 +177,8 @@ def record_video(cam_index):
         ret, frame = cap.read()
         if ret:
             font = cv2.FONT_HERSHEY_SIMPLEX
-            time_string = time.strftime("%H:%M:%S", time.localtime(time.time()))  # 24 hour time
-            cv2.putText(frame, time_string, (10, 470), font, 0.75, (255, 255, 255), 2, cv2.LINE_AA)  # write the timestamp
+            # time_string = time.strftime("%H:%M:%S", time.localtime(time.time()))  # 24 hour time
+            # cv2.putText(frame, time_string, (10, 470), font, 0.75, (255, 255, 255), 2, cv2.LINE_AA)  # write the timestamp
 
             out.write(frame)  # Save the frame to output file
 
