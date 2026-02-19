@@ -18,7 +18,10 @@ import RPi.GPIO as GPIO
 from cv2.videoio_registry import getBackendName
 from cv2_enumerate_cameras import supported_backends
 from cv2_enumerate_cameras import enumerate_cameras
-from ST_VL6180X import VL6180X
+# from ST_VL6180X import VL6180X
+import adafruit_vl6180x
+import board
+import busio
 
 
 os.environ["XDG_SESSION_TYPE"] = "xcb"  # may need to comment this out on certain systems
@@ -26,27 +29,12 @@ os.environ["XDG_SESSION_TYPE"] = "xcb"  # may need to comment this out on certai
 for backend in supported_backends:
     print(getBackendName(backend))
 
-# set colors
-BLACK = '\033[30m'
-RED = '\033[31m'
-GREEN = '\033[32m'
-YELLOW = '\033[33m' # orange on some systems
-BLUE = '\033[34m'
-MAGENTA = '\033[35m'
-CYAN = '\033[36m'
-LIGHT_GRAY = '\033[37m'
-DARK_GRAY = '\033[90m'
-BRIGHT_RED = '\033[91m'
-BRIGHT_GREEN = '\033[92m'
-BRIGHT_YELLOW = '\033[93m'
-BRIGHT_BLUE = '\033[94m'
-BRIGHT_MAGENTA = '\033[95m'
-BRIGHT_CYAN = '\033[96m'
-WHITE = '\033[97m'
+""" ToF sensor setup """
 
-RESET = '\033[0m' # called to return to standard terminal text color
-CLEAR = '\033[2J\033[H'  # clear screen
+reference_distance = 0  # reference distance in mm for calibration
 
+# Create shared I2C bus for all Adafruit VL6180X sensors
+i2c = busio.I2C(board.SCL, board.SDA)
 
 # GPIO pin setup for sensor power and LED control
 GPIO.setmode(GPIO.BCM)
@@ -63,11 +51,10 @@ for pin in sensor_pins:
 GPIO.setup(led_pin, GPIO.OUT)
 time.sleep(0.1)  # Wait for sensors to power down
 
-
 ignored_addresses = []  # Add any addresses to ignore here
 
 # Sensor configuration
-# sensor_pins = [sensor0_power_pin, sensor1_power_pin, sensor2_power_pin, sensor3_power_pin]
+sensor_pins = [sensor0_power_pin, sensor1_power_pin, sensor2_power_pin, sensor3_power_pin]
 sensor_addresses = [0x10, 0x11, 0x12, 0x13]  # New I2C addresses for sensors
 
 # Each sensor slot will be a dict with keys:
@@ -80,41 +67,8 @@ class SensorUnavailableError(Exception):
     pass
 
 
-def update_sensor_address(current_address, new_address):
-    """Attempt to update a VL6180X sensor I2C address, returning True on success.
-
-    Any exceptions are caught and logged, and False is returned to allow
-    graceful degradation when sensors misbehave.
-    """
-    try:
-        sensor = VL6180X(current_address)
-        sensor.get_identification()
-        if sensor.idModel != 0xB4:
-            print(f"Not Valid Sensor at address {hex(current_address)}, Id reported as {hex(sensor.idModel)}")
-            return False
-        else:
-            print(f"Valid Sensor at address {hex(current_address)}, ID reported as {hex(sensor.idModel)}")
-
-        # Change the I2C address
-        sensor.change_address(current_address, new_address)
-        time.sleep(0.1)  # Wait for the change to take effect
-
-        # Verify the address change
-        sensor_new = VL6180X(new_address)
-        sensor_new.get_identification()
-        if sensor_new.idModel == 0xB4:
-            print(f"Successfully changed address to {hex(new_address)}")
-            return True
-        else:
-            print(f"Failed to change address to {hex(new_address)}")
-            return False
-    except Exception as e:
-        print(f"{RED}Exception while updating sensor address from {hex(current_address)} to {hex(new_address)}: {e}{RESET}")
-        return False
-
-
 def init_single_sensor(index, power_pin, target_address):
-    """Initialize a single sensor slot.
+    """Initialize a single sensor slot using the Adafruit VL6180X driver.
 
     Returns a dict describing the sensor slot; failures are logged and
     represented as unavailable sensors so that video can still run.
@@ -133,12 +87,12 @@ def init_single_sensor(index, power_pin, target_address):
     try:
         GPIO.output(power_pin, GPIO.HIGH)
     except Exception as e:
-        print(f"{RED}Failed to power on sensor {index} (pin {power_pin}): {e}{RESET}")
+        print(f"Failed to power on sensor {index} (pin {power_pin}): {e}")
         return slot
 
     time.sleep(0.1)  # Wait for sensor to power up
 
-    # Scan for new devices
+    # Scan for devices on the I2C bus to see if our expected address responds
     try:
         p = subprocess.Popen(['i2cdetect', '-y', '1'], stdout=subprocess.PIPE)
         current_addresses = []
@@ -150,43 +104,34 @@ def init_single_sensor(index, power_pin, target_address):
                     if part != '--':
                         current_addresses.append(int(part, 16))
     except Exception as e:
-        print(f"{RED}Failed to run i2cdetect for sensor {index}: {e}{RESET}")
+        print(f"Failed to run i2cdetect for sensor {index}: {e}")
         try:
             GPIO.output(power_pin, GPIO.LOW)
         except Exception:
             pass
         return slot
 
-    new_addresses = [addr for addr in current_addresses if addr not in ignored_addresses]
-    if len(new_addresses) == 0:
-        print(f"No new I2C device found for sensor {index}")
+    # Check if our target address is present on the bus
+    if target_address not in current_addresses:
+        print(f"No I2C device found at expected address {hex(target_address)} for sensor {index}")
         try:
             GPIO.output(power_pin, GPIO.LOW)  # Power off the sensor
         except Exception:
             pass
         return slot
 
-    current_address = new_addresses[0]
-    print(f"Found new I2C device at address {hex(current_address)} for sensor {index}")
-    success = update_sensor_address(current_address, target_address)
-    if not success:
-        try:
-            GPIO.output(power_pin, GPIO.LOW)  # Power off the sensor
-        except Exception:
-            pass
-        return slot
-
+    print(f"Found VL6180X at expected address {hex(target_address)} for sensor {index}")
     ignored_addresses.append(target_address)
 
-    # Create the sensor object and apply default settings
+    # Create the Adafruit VL6180X sensor object; start with offset 0 and apply
+    # runtime calibration in software using the existing JSON-based offsets.
     try:
-        sensor = VL6180X(target_address)
-        sensor.default_settings()
+        sensor = adafruit_vl6180x.VL6180X(i2c, address=target_address, offset=0)
         slot["sensor"] = sensor
         slot["available"] = True
         print(f"sensor {index}: initialized at address {hex(target_address)}")
     except Exception as e:
-        print(f"{RED}Failed to initialize sensor {index} at address {hex(target_address)}: {e}{RESET}")
+        print(f"Failed to initialize sensor {index} at address {hex(target_address)}: {e}")
         try:
             GPIO.output(power_pin, GPIO.LOW)
         except Exception:
@@ -216,7 +161,28 @@ L1 = "0"
 L2 = "0"
 L3 = "0"
 
+""" functions and main program """
 
+# set colors
+BLACK = '\033[30m'
+RED = '\033[31m'
+GREEN = '\033[32m'
+YELLOW = '\033[33m' # orange on some systems
+BLUE = '\033[34m'
+MAGENTA = '\033[35m'
+CYAN = '\033[36m'
+LIGHT_GRAY = '\033[37m'
+DARK_GRAY = '\033[90m'
+BRIGHT_RED = '\033[91m'
+BRIGHT_GREEN = '\033[92m'
+BRIGHT_YELLOW = '\033[93m'
+BRIGHT_BLUE = '\033[94m'
+BRIGHT_MAGENTA = '\033[95m'
+BRIGHT_CYAN = '\033[96m'
+WHITE = '\033[97m'
+
+RESET = '\033[0m' # called to return to standard terminal text color
+CLEAR = '\033[2J\033[H'  # clear screen
 
 # set the directory to save the file in
 # dir = "captures/"
@@ -254,7 +220,7 @@ def print_cams():  # Print available cameras
             if cams[i]:  # Camera is available
                 print(f"Camera {i}: {GREEN}Available{RESET}")  # Print camera
                 # print the camera name
-                # print(f"Camera {i}: {GREEN}Available{RESET} ({cap.getBackendName()})")  # Print camera
+                # print(f"Camera {i}: {GREEN}Available{RESET} ({cap.getBackendName()})  # Print camera
             else:  # Camera is not available
                 print(f"Camera {i}: {RED}Not Available{RESET}")  # Print camera
 
@@ -321,10 +287,13 @@ def save_calibration_offsets(path, offsets):
         print(f"{YELLOW}Warning: failed to save ToF calibration offsets to {path}: {e}{RESET}")
 
 
-def sample_tof_offsets(duration_sec, sensors):
-    """Sample raw ToF readings for a given duration and compute per-sensor averages.
+def sample_tof_offsets(duration_sec, sensors, reference_distance_mm=50):
+    """Sample raw ToF readings and compute per-sensor hardware offsets.
 
-    Returns a list of integer offsets (mm), one per sensor slot.
+    This mirrors the logic in sensor_cal_test.py:
+    - Collect readings for each available sensor for `duration_sec`.
+    - Compute the mean range per sensor.
+    - Return offsets = reference_distance_mm - average_range.
     """
     num_sensors = len(sensors)
     samples = [[] for _ in range(num_sensors)]
@@ -334,7 +303,7 @@ def sample_tof_offsets(duration_sec, sensors):
             if not slot.get("available") or slot.get("sensor") is None:
                 continue
             try:
-                value = slot["sensor"].get_distance()
+                value = slot["sensor"].range
                 try:
                     value_int = int(value)
                 except (TypeError, ValueError):
@@ -347,30 +316,30 @@ def sample_tof_offsets(duration_sec, sensors):
                 # Ignore read failures during calibration; they'll just reduce sample count
                 pass
         time.sleep(0.01)
+
     offsets = []
     for idx in range(num_sensors):
         if samples[idx]:
-            avg = int(round(sum(samples[idx]) / len(samples[idx])))
+            avg = sum(samples[idx]) / len(samples[idx])
+            # Hardware offset per AN4545: offset = reference - measured_average
+            offset = int(round(reference_distance_mm - avg))
         else:
-            avg = 0
-        offsets.append(avg)
+            offset = 0
+        offsets.append(offset)
     return offsets
 
 
-def run_tof_calibration_or_load(calib_path, sensors):
+def run_tof_calibration_or_load(calib_path, sensors, reference_distance):
     """Run interactive ToF zeroing prompt or load existing calibration.
 
     - Shows an OpenCV window prompting: "Hold Space Bar to Zero Sensors".
     - If space is held continuously for 1s within 5s, performs a 1s calibration
-      sampling and saves offsets.
-    - Otherwise, attempts to load existing offsets from file.
+      sampling, computes hardware offsets (relative to reference_distance_mm),
+      writes them into each sensor's `.offset`, and saves to file.
+    - Otherwise, attempts to load existing offsets from file and apply them to
+      each sensor's `.offset`.
     """
     num_sensors = len(sensors)
-    # window_name = "ToF Calibration"
-    # cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
-    # cv2.resizeWindow(window_name, 800, 200)
-
-    # use the existing video feed window for the prompt instead of a separate one
     window_name = "Video Feed"
 
     prompt_start = time.time()
@@ -419,12 +388,29 @@ def run_tof_calibration_or_load(calib_path, sensors):
         cv2.imshow(window_name, img)
         cv2.waitKey(10)
 
-        offsets = sample_tof_offsets(1.0, sensors)
+        offsets = sample_tof_offsets(1.0, sensors, reference_distance_mm=reference_distance_mm)
+        # Apply offsets to hardware and save to file
+        for idx, slot in enumerate(sensors):
+            if not slot.get("available") or slot.get("sensor") is None:
+                continue
+            try:
+                slot["sensor"].offset = int(offsets[idx])
+                print(f"Sensor {idx} hardware offset set to {offsets[idx]} mm")
+            except Exception as e:
+                print(f"{YELLOW}Warning: failed to set hardware offset for sensor {idx}: {e}{RESET}")
         save_calibration_offsets(calib_path, offsets)
     else:
+        # Load offsets from file and apply to sensors
         offsets = load_calibration_offsets(calib_path, num_sensors)
+        for idx, slot in enumerate(sensors):
+            if not slot.get("available") or slot.get("sensor") is None:
+                continue
+            try:
+                slot["sensor"].offset = int(offsets[idx])
+                print(f"Sensor {idx} hardware offset restored to {offsets[idx]} mm")
+            except Exception as e:
+                print(f"{YELLOW}Warning: failed to restore hardware offset for sensor {idx}: {e}{RESET}")
 
-    # cv2.destroyWindow(window_name)
     return offsets
 
 
@@ -467,7 +453,7 @@ def record_video(cam_index=0):
     history = [[None, None, None, None] for _ in range(5)]
 
     def read_sensor(slot):
-        """Safely read a single sensor.
+        """Safely read a single sensor using the Adafruit VL6180X API.
 
         Returns (value_int_or_None, updated_slot). If a sensor fails mid-run,
         it is marked unavailable and will return None from then on.
@@ -475,7 +461,9 @@ def record_video(cam_index=0):
         if not slot["available"] or slot["sensor"] is None:
             return None, slot
         try:
-            value = slot["sensor"].get_distance()
+            # Adafruit driver exposes the current range in millimeters via the
+            # `.range` property.
+            value = slot["sensor"].range
             try:
                 value_int = int(value)
             except (TypeError, ValueError):
@@ -530,12 +518,9 @@ def record_video(cam_index=0):
                 if i < len(sensors):
                     raw_value, sensors[i] = read_sensor(sensors[i])
                     if raw_value is not None:
-                        # apply calibration offset and clamp at 0
-                        offset = calibration_offsets[i] if i < len(calibration_offsets) else 0
-                        cal_value = raw_value - offset
-                        # if cal_value < 0:
-                        #     cal_value = 0
-                        current_values[i] = cal_value
+                        # Offsets are now applied in hardware via sensor.offset, so
+                        # we can use the raw_value directly.
+                        current_values[i] = raw_value
                     else:
                         current_values[i] = None
                 else:
