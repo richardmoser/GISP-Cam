@@ -497,8 +497,9 @@ def record_video(cam_index=0):
 
     try:
         while True:  # Loop until 'q' is pressed
-            ret, frame = cap.read()  # Read frame from camera
-            if not ret:  # If frame is not read correctly
+            ret, frame = cap.read()  # Read frame from ca
+            # mera
+            if not ret:  # If frame is noq                                                                                                                                       t read correctly
                 print(f"{RED}Error: Could not read frame from camera.{RESET}")
                 disconnect = True
                 while disconnect:

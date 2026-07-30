@@ -161,6 +161,9 @@ def record_video(cam_index):
 
     print(f"Recording to {filename}")
 
+
+    cv2.namedWindow('Video Feed', cv2.WINDOW_NORMAL)  # Create a resizable window
+
     while True:
         if not cap or not cap.isOpened():
             print(f"{RED}Camera disconnected. Attempting to reconnect...{RESET}")
@@ -182,7 +185,19 @@ def record_video(cam_index):
 
             out.write(frame)  # Save the frame to output file
 
-            cv2.imshow('frame', frame)
+            # cv2.imshow('frame', frame)
+
+            bordered_frame = cv2.copyMakeBorder(frame, 5, 30, 5, 5, cv2.BORDER_CONSTANT, value=[0, 0, 0])
+        # in the bottom border, add the current date and time in white text and the screen resolution
+            timestamp = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            resolution = f"{frame.shape[1]}x{frame.shape[0]}"
+            cv2.putText(bordered_frame, f"{timestamp} | {resolution}", (10, frame.shape[0] + 25),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
+
+
+            cv2.imshow('Video Feed', bordered_frame)  # Display the frame with border in the window
+
+
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
         else:
