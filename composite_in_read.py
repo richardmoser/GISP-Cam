@@ -145,5 +145,5 @@ if __name__ == '__main__':  # Run the
                 # cap = cv2.VideoCapture(camera_info.index)
                 cam_index = camera_info.index
                 print(f"{GREEN}Using camera index {cam_index}{RESET}")
-        # cam_index = 202
+        # cam_index = 0  # uncomment this line to use the first camera, probably your webcam for testing purposes
         record_video(cam_index=cam_index)  # Record video from a usb camera
